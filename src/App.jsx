@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  CircleAlert,
   ChevronLeft,
   ChevronRight,
   ClipboardPaste,
@@ -475,9 +476,9 @@ function App() {
 
   const analyzedSymbols = useMemo(() => analyzeSymbols(text), [text]);
 
-  const notify = (message) => {
+  const notify = (message, type = 'success') => {
     clearTimeout(toastTimerRef.current);
-    setToast(message);
+    setToast({ message, type });
     toastTimerRef.current = setTimeout(() => setToast(null), 2200);
   };
 
@@ -552,7 +553,7 @@ function App() {
         textareaRef.current?.setSelectionRange(caret, caret);
       });
     } catch {
-      notify('Разрешите доступ к буферу обмена');
+      notify('Разрешите доступ к буферу обмена', 'error');
       textareaRef.current?.focus();
     }
   };
@@ -563,7 +564,7 @@ function App() {
       notify('Текст скопирован');
     } catch {
       textareaRef.current?.select();
-      notify('Выделено — нажмите Ctrl+C');
+      notify('Не удалось скопировать — нажмите Ctrl+C', 'error');
     }
   };
 
@@ -619,15 +620,17 @@ function App() {
     if (!storageReady) return;
     try {
       localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
-      setSaveStatus('saved');
     } catch {
-      setSaveStatus('error');
+      notify('Не удалось сохранить пресеты', 'error');
     }
   }, [presets, storageReady]);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return undefined;
-    const registerWorker = () => navigator.serviceWorker.register('/sw.js').catch(() => {});
+    const registerWorker = () => navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.error('Service Worker registration failed', error);
+      notify('Не удалось включить офлайн-кеш', 'error');
+    });
     window.addEventListener('load', registerWorker);
     if (document.readyState === 'complete') registerWorker();
     return () => window.removeEventListener('load', registerWorker);
@@ -741,7 +744,12 @@ function App() {
         <ConfirmDialog {...confirmation} onCancel={() => setConfirmation(null)} />
       )}
 
-      {toast && <div className="toast"><Check size={15} /> {toast}</div>}
+      {toast && (
+        <div className={`toast ${toast.type}`}>
+          {toast.type === 'error' ? <CircleAlert size={15} /> : <Check size={15} />}
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

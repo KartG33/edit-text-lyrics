@@ -1,5 +1,21 @@
 const normalizeNewlines = (text) => text.replace(/\r\n?/g, '\n');
 
+const structuredValuePattern = /(?:https?:\/\/|www\.)[^\s<>"']+|[\p{L}\p{N}.!#$%&'*+/=?^_`{|}~-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+|\b\d+(?:[.,]\d+)+\b|\b[\p{L}\p{N}_-]+(?:\.[\p{L}\p{N}_-]+)+\b/giu;
+
+const findStructuredValueRanges = (text) => [...text.matchAll(structuredValuePattern)]
+  .map((match) => {
+    const start = match.index;
+    let end = start + match[0].length;
+
+    if (/^(?:https?:\/\/|www\.)/iu.test(match[0])) {
+      const trailingPunctuation = match[0].match(/[.,;:!?]+$/u)?.[0];
+      if (trailingPunctuation) end -= trailingPunctuation.length;
+    }
+
+    return { start, end };
+  })
+  .filter(({ start, end }) => end > start);
+
 export const transforms = {
   spaces: (text) => text.replace(/[\t ]+/g, ' '),
 
@@ -11,21 +27,40 @@ export const transforms = {
 
   sentence: (text) => {
     let startsSentence = true;
+    const protectedRanges = findStructuredValueRanges(text);
+    let rangeIndex = 0;
+    let offset = 0;
+    let result = '';
 
-    return Array.from(text)
-      .map((character) => {
-        if (startsSentence && /\p{L}/u.test(character)) {
+    for (const character of text) {
+      while (protectedRanges[rangeIndex] && offset >= protectedRanges[rangeIndex].end) {
+        rangeIndex += 1;
+      }
+
+      const range = protectedRanges[rangeIndex];
+      const insideStructuredValue = range && offset >= range.start && offset < range.end;
+
+      if (insideStructuredValue) {
+        if (offset === range.start && startsSentence && /\p{L}/u.test(text.slice(range.start, range.end))) {
           startsSentence = false;
-          return character.toLocaleUpperCase();
         }
+        result += character;
+        offset += character.length;
+        continue;
+      }
 
-        if (/[.!?]/u.test(character)) {
-          startsSentence = true;
-        }
+      if (startsSentence && /\p{L}/u.test(character)) {
+        startsSentence = false;
+        result += character.toLocaleUpperCase();
+      } else {
+        if (/[.!?]/u.test(character)) startsSentence = true;
+        result += character;
+      }
 
-        return character;
-      })
-      .join('');
+      offset += character.length;
+    }
+
+    return result;
   },
 
   punctuationBefore: (text) => text.replace(/[\t ]+([.,;:!?])/g, '$1'),
@@ -61,11 +96,16 @@ export const transforms = {
     .filter(Boolean)
     .join(' '),
 
-  inlineComma: (text) => normalizeNewlines(text)
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(', '),
+  inlineComma: (text) => {
+    const lines = normalizeNewlines(text)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return lines
+      .map((line, index) => (index < lines.length - 1 && !line.endsWith(',') ? `${line},` : line))
+      .join(' ');
+  },
 
   sunoClean: (text) => text.replace(/\[([^\]\r\n:]+):[^\]\r\n]*\]/g, (_, tag) => `[${tag.trim()}]`),
 

@@ -32,6 +32,18 @@ test('Cleanup: sentence capitalizes the first letter after sentence punctuation'
   );
 });
 
+test('Cleanup: sentence preserves structured values', () => {
+  assert.equal(transforms.sentence('https://example.com'), 'https://example.com');
+  assert.equal(transforms.sentence('mail@example.com'), 'mail@example.com');
+  assert.equal(transforms.sentence('example.com'), 'example.com');
+  assert.equal(transforms.sentence('song.mp3'), 'song.mp3');
+  assert.equal(transforms.sentence('version 3.14 release'), 'Version 3.14 release');
+  assert.equal(
+    transforms.sentence('visit https://example.com/MyPath?x=Value. next sentence'),
+    'Visit https://example.com/MyPath?x=Value. Next sentence',
+  );
+});
+
 test('Cleanup: punctuation before treats repeated punctuation as one run', () => {
   assert.equal(transforms.punctuationBefore('Wait  ! What , now ?'), 'Wait! What, now?');
 });
@@ -62,6 +74,11 @@ test('Format commands normalize empty lines and inline lists', () => {
   assert.equal(transforms.lineX('a\n  \n\nb'), 'a\nb');
   assert.equal(transforms.inline(' one \n\n two '), 'one two');
   assert.equal(transforms.inlineComma(' one \n\n two '), 'one, two');
+});
+
+test('Format: Inline , does not duplicate an existing comma', () => {
+  assert.equal(transforms.inlineComma('hello,\nworld'), 'hello, world');
+  assert.equal(transforms.inlineComma('hello\nworld'), 'hello, world');
 });
 
 test('Suno commands clean, space and split lyrics structure', () => {
