@@ -1,0 +1,8 @@
+node_modules/
+.npm-cache/
+.wrangler/
+dist/
+.next/
+upload/
+*.log
+next-env.d.ts
